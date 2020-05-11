@@ -5,6 +5,9 @@ import sys
 import json
 from chat_utils import *
 import client_state_machine as csm
+from Crypto.Cipher import PKCS1_OAEP
+from Crypto.PublicKey import RSA
+import jsonpickle
 
 import threading
 
@@ -17,6 +20,8 @@ class Client:
         self.local_msg = ''
         self.peer_msg = ''
         self.args = args
+        self.key = RSA.generate(2048)
+        self.serverkey = None
 
     def quit(self):
         self.socket.shutdown(socket.SHUT_RDWR)
@@ -63,7 +68,8 @@ class Client:
         my_msg, peer_msg = self.get_msgs()
         if len(my_msg) > 0:
             self.name = my_msg
-            msg = json.dumps({"action":"login", "name":self.name})
+            dump_server_key = jsonpickle.encode(self.key.publickey())
+            msg = json.dumps({"action": "login", "name": self.name, "pubkey": dump_server_key})
             self.send(msg)
             response = json.loads(self.recv())
             if response["status"] == 'ok':
@@ -71,6 +77,9 @@ class Client:
                 self.sm.set_state(S_LOGGEDIN)
                 self.sm.set_myname(self.name)
                 self.print_instructions()
+                self.serverkey = jsonpickle.decode(response["pubkey"])
+                self.sm.set_server_key(self.serverkey)
+                print(self.serverkey)
                 return True
             elif response["status"] == 'duplicate':
                 self.system_msg += 'Duplicate username, try again'

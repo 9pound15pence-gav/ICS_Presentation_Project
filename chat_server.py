@@ -14,6 +14,9 @@ import json
 import pickle as pkl
 from chat_utils import *
 import chat_group as grp
+from Crypto.Cipher import PKCS1_OAEP
+from Crypto.PublicKey import RSA
+import jsonpickle
 
 
 class Server:
@@ -32,6 +35,10 @@ class Server:
         self.indices = {}
         # sonnet
         self.sonnet = indexer.PIndex("AllSonnets.txt")
+        # key
+        self.key = RSA.generate(2048)
+        # socket pubkey
+        self.client_pubkey = {}
 
     def new_client(self, sock):
         # add to all sockets and to new clients
@@ -48,6 +55,8 @@ class Server:
 
                 if msg["action"] == "login":
                     name = msg["name"]
+                    self.client_pubkey[name] = jsonpickle.decode(msg["pubkey"])
+                    print(self.client_pubkey)
                     if self.group.is_member(name) != True:
                         # move socket from new clients list to logged clients
                         self.new_clients.remove(sock)
@@ -65,8 +74,9 @@ class Server:
                         print(self.indices[name].msgs)
                         print(self.indices[name].index)
                         self.group.join(name)
+                        dump_key = jsonpickle.encode(self.key.publickey())
                         mysend(sock, json.dumps(
-                            {"action": "login", "status": "ok"}))
+                            {"action": "login", "status": "ok", "pubkey": dump_key}))
                     else:  # a client under this name has already logged in
                         mysend(sock, json.dumps(
                             {"action": "login", "status": "duplicate"}))

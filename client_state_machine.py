@@ -13,6 +13,7 @@ class ClientSM:
         self.me = ''
         self.out_msg = ''
         self.s = s
+        self.server_key = None
 
     def set_state(self, state):
         self.state = state
@@ -25,6 +26,9 @@ class ClientSM:
 
     def get_myname(self):
         return self.me
+
+    def set_server_key(self, key):
+        self.server_key = key
 
     def connect_to(self, peer):
         msg = json.dumps({"action":"connect", "target":peer})
