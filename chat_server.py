@@ -14,8 +14,8 @@ import json
 import pickle as pkl
 from chat_utils import *
 import chat_group as grp
-from Crypto.Cipher import PKCS1_OAEP
 from Crypto.PublicKey import RSA
+from Crypto.Cipher import PKCS1_OAEP
 import jsonpickle
 
 
@@ -55,8 +55,8 @@ class Server:
 
                 if msg["action"] == "login":
                     name = msg["name"]
-                    self.client_pubkey[name] = jsonpickle.decode(msg["pubkey"])
-                    print(self.client_pubkey)
+                    self.client_pubkey[name] = RSA.importKey(jsonpickle.decode(msg["pubkey"]))
+                    # print(self.client_pubkey)
                     if self.group.is_member(name) != True:
                         # move socket from new clients list to logged clients
                         self.new_clients.remove(sock)
@@ -71,10 +71,10 @@ class Server:
                             except IOError:  # chat index does not exist, then create one
                                 self.indices[name] = indexer.Index(name)
                         print(name + ' logged in')
-                        print(self.indices[name].msgs)
-                        print(self.indices[name].index)
+                        # print(self.indices[name].msgs)
+                        # print(self.indices[name].index)
                         self.group.join(name)
-                        dump_key = jsonpickle.encode(self.key.publickey())
+                        dump_key = jsonpickle.encode(self.key.publickey().exportKey())
                         mysend(sock, json.dumps(
                             {"action": "login", "status": "ok", "pubkey": dump_key}))
                     else:  # a client under this name has already logged in
@@ -138,12 +138,15 @@ class Server:
                 """
                 Finding the list of people to send to and index message
                 """
+                print("Received msg before decryption:", msg["message"])
+                cipher = PKCS1_OAEP.new(self.key)
+                msg["message"] = cipher.decrypt(jsonpickle.decode(msg["message"])).decode()
+                print("Received msg after decryption", msg["message"])
                 # IMPLEMENTATION
                 # ---- start your code ---- #
                 self.indices[from_name].add_msg_and_index(msg["message"])
                 # ---- end of your code --- #
                 the_guys = self.group.list_me(from_name)[1:]
-                msg_dump = json.dumps(msg)
                 for g in the_guys:
                     to_sock = self.logged_name2sock[g]
                     # IMPLEMENTATION
@@ -151,6 +154,11 @@ class Server:
                     # print(msg)
                     # print(type(msg))
                     self.indices[g].add_msg_and_index(msg["message"])
+                    cipher = PKCS1_OAEP.new(self.client_pubkey[g])
+                    cipher_text = jsonpickle.encode(cipher.encrypt(msg["message"].encode()))
+                    print("Sent msg after encryption", cipher_text)
+                    msg_dump = json.dumps({"action": "exchange", "from": msg["from"],
+                                           "message": cipher_text})
                     mysend(to_sock, msg_dump)
                     # ---- end of your code --- #
 

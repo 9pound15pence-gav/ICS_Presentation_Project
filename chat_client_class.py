@@ -34,7 +34,7 @@ class Client:
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM )
         svr = SERVER if self.args.d == None else (self.args.d, CHAT_PORT)
         self.socket.connect(svr)
-        self.sm = csm.ClientSM(self.socket)
+        self.sm = csm.ClientSM(self.socket, self.key)
         reading_thread = threading.Thread(target=self.read_input)
         reading_thread.daemon = True
         reading_thread.start()
@@ -68,7 +68,7 @@ class Client:
         my_msg, peer_msg = self.get_msgs()
         if len(my_msg) > 0:
             self.name = my_msg
-            dump_server_key = jsonpickle.encode(self.key.publickey())
+            dump_server_key = jsonpickle.encode(self.key.publickey().exportKey())
             msg = json.dumps({"action": "login", "name": self.name, "pubkey": dump_server_key})
             self.send(msg)
             response = json.loads(self.recv())
@@ -77,7 +77,7 @@ class Client:
                 self.sm.set_state(S_LOGGEDIN)
                 self.sm.set_myname(self.name)
                 self.print_instructions()
-                self.serverkey = jsonpickle.decode(response["pubkey"])
+                self.serverkey = RSA.importKey(jsonpickle.decode(response["pubkey"]))
                 self.sm.set_server_key(self.serverkey)
                 print(self.serverkey)
                 return True

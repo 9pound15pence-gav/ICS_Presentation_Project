@@ -5,14 +5,18 @@ Created on Sun Apr  5 00:00:32 2015
 """
 from chat_utils import *
 import json
+from Crypto.Cipher import PKCS1_OAEP
+import jsonpickle
+
 
 class ClientSM:
-    def __init__(self, s):
+    def __init__(self, s, key):
         self.state = S_OFFLINE
         self.peer = ''
         self.me = ''
         self.out_msg = ''
         self.s = s
+        self.key = key
         self.server_key = None
 
     def set_state(self, state):
@@ -151,8 +155,11 @@ class ClientSM:
                     my_msg_ls = my_msg[6:].split()
                     my_msg_ls.reverse()
                     my_msg = "_flip_" + " ".join(my_msg_ls)
+                text_with_time = text_proc(my_msg, self.me)
+                cipher = PKCS1_OAEP.new(self.server_key)
+                cipher_text = jsonpickle.encode(cipher.encrypt(text_with_time.encode()))
                 mysend(self.s, json.dumps({"action": "exchange", "from": self.me,
-                                           "message": text_proc(my_msg, self.me)}))
+                                           "message": cipher_text}))
                 if my_msg == 'bye':
                     self.disconnect()
                     self.state = S_LOGGEDIN
@@ -163,8 +170,10 @@ class ClientSM:
                 # print(peer_msg)
                 # print(type(peer_msg))
                 if peer_msg["action"] == "exchange":
+                    cipher = PKCS1_OAEP.new(self.key)
+                    message = cipher.decrypt(jsonpickle.decode(peer_msg["message"])).decode()
                     self.out_msg += "[" + peer_msg["from"] + "] "
-                    self.out_msg += peer_msg["message"] + "\n"
+                    self.out_msg += message + "\n"
                 elif peer_msg["action"] == "connect":
                     self.out_msg += "(" + peer_msg["from"] + " joined)\n"
                 elif peer_msg["action"] == "disconnect":
